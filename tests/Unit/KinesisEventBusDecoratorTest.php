@@ -46,6 +46,39 @@ class KinesisEventBusDecoratorTest extends TestCase
         $this->event = $this->createMock(TWEvent::class);
         $this->event->method('getName')->willReturn('test.event');
         $this->event->method('getAttributes')->willReturn(['key' => 'value']);
+
+        foreach ([
+            'getUserId' => '12',
+            'getCustomerId' => '34',
+            'getPlatform' => 'web',
+            'getEnvironment' => 'production',
+            'getSessionId' => '1234',
+            'getRequestId' => '5678',
+        ] as $method => $value) {
+            $this->session->method($method)->willReturn($value);
+        }
+    }
+
+    protected function getPayload(): array
+    {
+        return [
+            'product_id' => KinesisEventBusDecorator::PRODUCT_ID,
+            'tw_event' => [
+                'name' => $this->event->getName(),
+                'attributes' => $this->event->getAttributes()
+            ],
+            'identity' => [
+                'user_id' => $this->session->getUserId(),
+                'customer_id' => $this->session->getCustomerId()
+            ],
+            'context' => [
+                'unix_timestamp' => time(),
+                'platform' => $this->session->getPlatform(),
+                'environment' => $this->session->getEnvironment(),
+                'session_id' => $this->session->getSessionId(),
+                'request_id' => $this->session->getRequestId(),
+            ]
+        ];
     }
 
     public function testItPassesEventToEventBus(): void
@@ -71,31 +104,7 @@ class KinesisEventBusDecoratorTest extends TestCase
     public function testItSendsEventToKinesis(): void
     {
         // setup
-        $payload = [
-            'product_id' => KinesisEventBusDecorator::PRODUCT_ID,
-            'tw_event' => [
-                'name' => $this->event->getName(),
-                'attributes' => $this->event->getAttributes()
-            ],
-            'identity' => [
-                'user_id' => '12',
-                'customer_id' => '34'
-            ],
-            'context' => [
-                'unix_timestamp' => time(),
-                'platform' => 'web',
-                'environment' => 'production',
-                'session_id' => '1234',
-                'request_id' => '5678',
-            ]
-        ];
-
-        $this->session->method('getUserId')->willReturn('12');
-        $this->session->method('getCustomerId')->willReturn('34');
-        $this->session->method('getPlatform')->willReturn('web');
-        $this->session->method('getEnvironment')->willReturn('production');
-        $this->session->method('getSessionId')->willReturn('1234');
-        $this->session->method('getRequestId')->willReturn('5678');
+        $payload = $this->getPayload();
 
         $this->eventBus->expects($this->once())->method('fire')->with($this->event);
         $this->kinesis->expects($this->once())

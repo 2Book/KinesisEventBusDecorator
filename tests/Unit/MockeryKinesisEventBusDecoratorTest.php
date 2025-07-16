@@ -64,6 +64,28 @@ class MockeryKinesisEventBusDecoratorTest extends TestCase
         parent::tearDown();
     }
 
+    protected function getPayload(): array
+    {
+        return [
+            'product_id' => KinesisEventBusDecorator::PRODUCT_ID,
+            'tw_event' => [
+                'name' => $this->event->getName(),
+                'attributes' => $this->event->getAttributes()
+            ],
+            'identity' => [
+                'user_id' => $this->session->getUserId(),
+                'customer_id' => $this->session->getCustomerId()
+            ],
+            'context' => [
+                'unix_timestamp' => time(),
+                'platform' => $this->session->getPlatform(),
+                'environment' => $this->session->getEnvironment(),
+                'session_id' => $this->session->getSessionId(),
+                'request_id' => $this->session->getRequestId(),
+            ]
+        ];
+    }
+
     public function testItPassesEventToEventBus(): void
     {
         // setup
@@ -87,24 +109,7 @@ class MockeryKinesisEventBusDecoratorTest extends TestCase
     public function testItSendsEventToKinesis(): void
     {
         // setup
-        $payload = [
-            'product_id' => KinesisEventBusDecorator::PRODUCT_ID,
-            'tw_event' => [
-                'name' => $this->event->getName(),
-                'attributes' => $this->event->getAttributes()
-            ],
-            'identity' => [
-                'user_id' => '12',
-                'customer_id' => '34'
-            ],
-            'context' => [
-                'unix_timestamp' => time(),
-                'platform' => 'web',
-                'environment' => 'production',
-                'session_id' => '1234',
-                'request_id' => '5678',
-            ]
-        ];
+        $payload = $this->getPayload();
 
         $this->eventBus->expects()->fire($this->event)->once();
         $this->kinesis->expects()->putRecord([
