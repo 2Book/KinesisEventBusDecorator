@@ -1,5 +1,7 @@
 <?php
 
+namespace TWEvents;
+
 use Aws\Kinesis\KinesisClient as AwsKinesisClient;
 use Aws\Exception\AwsException;
 use Psr\Log\LoggerInterface;
@@ -52,31 +54,33 @@ class KinesisEventBusDecorator implements EventBus
     /**
      * Fire an event and send it to Kinesis.
      *
-     * @param TogetherworkEvent $event
+     * @param Event $event
      * @return void
      */
-    public function fire(TogetherworkEvent $event): void
+    public function fire(Event $event): void
     {
-        $payload = $this->getPayload($event);
+        if ($event instanceof TogetherworkEvent) {
+            $payload = $this->getPayload($event);
 
-        try {
-            $this->kinesis->putRecord([
-                'StreamName'   => self::STREAM_NAME,
-                'PartitionKey' => $this->getPartitionKey(),
-                'Data'         => json_encode($payload)
-            ]);
-        } catch (AwsException $e) {
-            // Log error
-            $this->logger->error('Failed to send event to Kinesis', [
-                'exception' => $e,
-                'event' => $event,
-            ]);
+            try {
+                $this->kinesis->putRecord([
+                    'StreamName'   => self::STREAM_NAME,
+                    'PartitionKey' => $this->getPartitionKey(),
+                    'Data'         => json_encode($payload)
+                ]);
+            } catch (AwsException $e) {
+                // Log error
+                $this->logger->error('Failed to send event to Kinesis', [
+                    'exception' => $e,
+                    'event' => $event,
+                ]);
+            }
         }
 
         $this->eventBus->fire($event);
     }
 
-    private function getPayload(Event $event): array
+    private function getPayload(TogetherworkEvent $event): array
     {
         return [
             'product_id' => self::PRODUCT_ID,

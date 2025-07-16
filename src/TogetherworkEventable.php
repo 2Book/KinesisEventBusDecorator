@@ -1,5 +1,7 @@
 <?php
 
+namespace TWEvents;
+
 trait TogetherworkEventable
 {
     const TW_EVENT_NAME = null;

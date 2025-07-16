@@ -1,5 +1,7 @@
 <?php
 
+namespace TWEvents;
+
 interface SessionManager
 {
     /**
