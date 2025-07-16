@@ -113,16 +113,17 @@ class KinesisEventBusDecoratorTest extends TestCase
     public function testItLogsErrorWhenKinesisFails(): void
     {
         // setup
-        $this->kinesis->method('putRecord')->willThrowException($this->createMock(AwsException::class));
+        $awsException = $this->createMock(AwsException::class);
+        $this->kinesis->method('putRecord')->willThrowException($awsException);
 
         $this->logger->expects($this->once())
             ->method('error')
             ->with(
                 'Failed to send event to Kinesis',
-                $this->callback(function ($context) {
-                    return isset($context['exception']) && $context['exception'] instanceof AwsException &&
-                           isset($context['event']) && $context['event'] instanceof TWEvent;
-                })
+                [
+                    'exception' => $awsException,
+                    'event' => $this->event
+                ]
             );
 
         $this->eventBus->expects($this->once())->method('fire')->with($this->event);
