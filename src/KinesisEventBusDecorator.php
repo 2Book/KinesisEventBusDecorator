@@ -34,7 +34,9 @@ class KinesisEventBusDecorator implements EventBus
 
     /**
      * KinesisEventBusDecorator constructor.
+     *
      * @param EventBus $eventBus
+     * @param SessionManager $session
      * @param AwsKinesisClient $kinesis
      * @param LoggerInterface $logger
      */
