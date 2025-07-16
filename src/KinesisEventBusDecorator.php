@@ -80,6 +80,12 @@ class KinesisEventBusDecorator implements EventBus
         $this->eventBus->fire($event);
     }
 
+    /**
+     * Get the payload for the event.
+     *
+     * @param TogetherworkEvent $event
+     * @return array
+     */
     private function getPayload(TogetherworkEvent $event): array
     {
         return [
@@ -102,6 +108,11 @@ class KinesisEventBusDecorator implements EventBus
         ];
     }
 
+    /**
+     * Get the partition key for Kinesis.
+     *
+     * @return string
+     */
     private function getPartitionKey(): string
     {
         return self::PRODUCT_ID . '-' . $this->session->getCustomerId();
