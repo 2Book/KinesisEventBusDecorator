@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Aws\Exception\AwsException;
 use Psr\Log\LoggerInterface;
 use Tests\TestCase;
@@ -59,27 +60,6 @@ class KinesisEventBusDecoratorTest extends TestCase
         }
     }
 
-    protected function getPayload(): array
-    {
-        return [
-            'product_id' => KinesisEventBusDecorator::PRODUCT_ID,
-            'tw_event' => [
-                'name' => $this->event->getName(),
-                'attributes' => $this->event->getAttributes()
-            ],
-            'identity' => [
-                'user_id' => $this->session->getUserId(),
-                'customer_id' => $this->session->getCustomerId()
-            ],
-            'context' => [
-                'unix_timestamp' => time(),
-                'platform' => $this->session->getPlatform(),
-                'environment' => $this->session->getEnvironment(),
-                'session_id' => $this->session->getSessionId(),
-                'request_id' => $this->session->getRequestId(),
-            ]
-        ];
-    }
 
     public function testItPassesEventToEventBus(): void
     {
@@ -104,7 +84,7 @@ class KinesisEventBusDecoratorTest extends TestCase
     public function testItSendsEventToKinesis(): void
     {
         // setup
-        $payload = $this->getPayload();
+        $payload = $this->getPayload($this->event, $this->session);
 
         $this->eventBus->expects($this->once())->method('fire')->with($this->event);
         $this->kinesis->expects($this->once())
@@ -140,4 +120,31 @@ class KinesisEventBusDecoratorTest extends TestCase
         // execute
         $this->decorator->fire($this->event);
     }
+
+    #[DataProvider('provideEventScenarios')]
+    public function testEventAttributesAreCorrectlyFormatted(
+        string $eventName,
+        array $attributes
+    ): void {
+        // Setup
+        $event = $this->createMock(TWEvent::class);
+        $event->method('getName')->willReturn($eventName);
+        $event->method('getAttributes')->willReturn($attributes);
+
+        $expectedPayload = $this->getPayload($event, $this->session);
+
+        $this->eventBus->expects($this->once())->method('fire')->with($event);
+        $this->kinesis->expects($this->once())
+            ->method('putRecord')
+            ->with([
+                'StreamName' => KinesisEventBusDecorator::STREAM_NAME,
+                'Data' => json_encode($expectedPayload),
+                'PartitionKey' => KinesisEventBusDecorator::PRODUCT_ID . '-' . $this->session->getCustomerId()
+            ]);
+
+        // Act
+        $this->decorator->fire($event);
+    }
+
+    
 }

@@ -128,6 +128,9 @@ Here's how a data provider could be implemented to test different event scenario
 
 ```php
 /**
+ * Note: the '@dataProvider' tag tells PHPUnit to call the 'provideEventScenarios'
+ * method and run the test over each item in the array.
+ * 
  * @dataProvider provideEventScenarios
  */
 public function testEventAttributesAreCorrectlyFormatted(
@@ -227,3 +230,89 @@ Data providers are particularly useful when:
 - Testing various combinations of valid/invalid inputs
 
 In our example above, we're testing how different event structures are formatted before being sent to Kinesis. This approach makes it easy to verify that our event bus handles various event scenarios correctly while keeping the test code DRY and maintainable.
+
+## Understanding Mocks vs Spies
+
+When writing unit tests, it's important to understand the difference between mocks and spies, as they serve different testing purposes. Our codebase demonstrates both approaches.
+
+### Mocks: Behavior Verification
+
+Mocks are used when we want to verify that certain methods were called with specific arguments. They are set up with expectations before the test runs. Our `KinesisEventBusDecoratorTest` shows several examples of mocking:
+
+```php
+public function testItSendsEventToKinesis(): void
+{
+    // setup
+    $payload = $this->getPayload($this->event, $this->session);
+
+    $this->eventBus->expects($this->once())
+        ->method('fire')
+        ->with($this->event);
+    
+    $this->kinesis->expects($this->once())
+        ->method('putRecord')
+        ->with([
+            'StreamName' => KinesisEventBusDecorator::STREAM_NAME,
+            'Data' => json_encode($payload),
+            'PartitionKey' => KinesisEventBusDecorator::PRODUCT_ID . '-' . $this->session->getCustomerId(),
+        ]);
+
+    // execute
+    $this->decorator->fire($this->event);
+}
+```
+
+In this example:
+- We set up expectations BEFORE the method is called
+- We verify both that methods are called AND what arguments they receive
+- The test will fail if the method isn't called or is called with wrong arguments
+
+### Spies: State Verification
+
+Spies, on the other hand, record what happens during the test and allow us to verify afterward. While our codebase primarily uses mocks, we could rewrite the above test using spies (in Mockery style) like this:
+
+```php
+public function testItSendsEventToKinesis(): void
+{
+    // setup
+    $this->eventBus = Mockery::spy(EventBus::class);
+    $this->kinesis = Mockery::spy(KinesisClient::class);
+    
+    // execute
+    $this->decorator->fire($this->event);
+    
+    // verify after the fact
+    $this->eventBus->shouldHaveReceived('fire')
+        ->with($this->event)
+        ->once();
+    
+    $this->kinesis->shouldHaveReceived('putRecord')
+        ->withArgs(function($args) {
+            return $args['StreamName'] === KinesisEventBusDecorator::STREAM_NAME
+                && !empty($args['Data'])
+                && !empty($args['PartitionKey']);
+        })
+        ->once();
+}
+```
+
+### When to Use Each
+
+- **Use Mocks When**:
+  - You want to ensure specific interactions occur in a specific order
+  - You need to verify exact parameter values
+  - You want the test to fail fast if expectations aren't met
+  - You're testing behavior rather than state
+
+- **Use Spies When**:
+  - You want to verify interactions after they occur
+  - You care more about whether something happened than its exact parameters
+  - You want more flexibility in verification
+  - You're testing state rather than behavior
+
+Our codebase primarily uses mocks because:
+1. We need to verify exact parameter values (especially in Kinesis interactions)
+2. The order of operations matters (events must be logged before being sent)
+3. We want immediate failure if expectations aren't met
+
+However, both approaches are valid, and the choice depends on your specific testing needs.
