@@ -128,6 +128,9 @@ Here's how a data provider could be implemented to test different event scenario
 
 ```php
 /**
+ * Note: the '@dataProvider' tag tells PHPUnit to call the 'provideEventScenarios'
+ * method and run the test over each item in the array.
+ * 
  * @dataProvider provideEventScenarios
  */
 public function testEventAttributesAreCorrectlyFormatted(
