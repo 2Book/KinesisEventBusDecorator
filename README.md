@@ -128,27 +128,29 @@ Here's how a data provider could be implemented to test different event scenario
 
 ```php
 /**
- * Note: the '@dataProvider' tag tells PHPUnit to call the 'provideEventScenarios'
+ * Note: the #[DataProvider('provideEventScenarios')] tag tells PHPUnit to call the 'provideEventScenarios'
  * method and run the test over each item in the array.
- * 
- * @dataProvider provideEventScenarios
  */
+#[DataProvider('provideEventScenarios')]
 public function testEventAttributesAreCorrectlyFormatted(
-    string $eventName, 
-    array $attributes, 
-    array $expectedPayload
+    string $eventName,
+    array $attributes
 ): void {
-    // Arrange
+    // Setup
     $event = $this->createMock(TWEvent::class);
     $event->method('getName')->willReturn($eventName);
     $event->method('getAttributes')->willReturn($attributes);
 
+    $expectedPayload = $this->getPayload($event, $this->session);
+
+    $this->eventBus->expects($this->once())->method('fire')->with($event);
     $this->kinesis->expects($this->once())
         ->method('putRecord')
-        ->with($this->callback(function($args) use ($expectedPayload) {
-            $data = json_decode($args['Data'], true);
-            return $data['tw_event'] === $expectedPayload;
-        }));
+        ->with([
+            'StreamName' => KinesisEventBusDecorator::STREAM_NAME,
+            'Data' => json_encode($expectedPayload),
+            'PartitionKey' => KinesisEventBusDecorator::PRODUCT_ID . '-' . $this->session->getCustomerId()
+        ]);
 
     // Act
     $this->decorator->fire($event);
@@ -159,11 +161,7 @@ public function provideEventScenarios(): array
     return [
         'basic event' => [
             'event.created',
-            ['id' => 1, 'status' => 'active'],
-            [
-                'name' => 'event.created',
-                'attributes' => ['id' => 1, 'status' => 'active']
-            ]
+            ['id' => 1, 'status' => 'active']
         ],
         'event with nested attributes' => [
             'user.profile.updated',
@@ -172,24 +170,11 @@ public function provideEventScenarios(): array
                     'id' => 123,
                     'profile' => ['name' => 'John', 'age' => 30]
                 ]
-            ],
-            [
-                'name' => 'user.profile.updated',
-                'attributes' => [
-                    'user' => [
-                        'id' => 123,
-                        'profile' => ['name' => 'John', 'age' => 30]
-                    ]
-                ]
             ]
         ],
         'event with empty attributes' => [
             'cache.cleared',
-            [],
-            [
-                'name' => 'cache.cleared',
-                'attributes' => []
-            ]
+            []
         ]
     ];
 }
