@@ -33,7 +33,7 @@ class KinesisEventBusDecoratorTest extends TestCase
     {
         parent::setUp();
         $this->eventBus = $this->createMock(EventBus::class);
-        $this->session = $this->createMock(SessionManager::class);
+        $this->session = $this->createStub(SessionManager::class);
         $this->kinesis = $this->createMock(KinesisClient::class);
         $this->logger = $this->createMock(LoggerInterface::class);
 
@@ -44,7 +44,7 @@ class KinesisEventBusDecoratorTest extends TestCase
             $this->logger
         );
 
-        $this->event = $this->createMock(TWEvent::class);
+        $this->event = $this->createStub(TWEvent::class);
         $this->event->method('getName')->willReturn('test.event');
         $this->event->method('getAttributes')->willReturn(['key' => 'value']);
 
@@ -65,6 +65,8 @@ class KinesisEventBusDecoratorTest extends TestCase
     {
         // setup
         $this->eventBus->expects($this->once())->method('fire')->with($this->event);
+        $this->kinesis->expects($this->once())->method('putRecord');
+        $this->logger->expects($this->never())->method('error');
 
         // execute
         $this->decorator->fire($this->event);
@@ -73,9 +75,11 @@ class KinesisEventBusDecoratorTest extends TestCase
     public function testItPassesNonTogetherworkEventToEventBus(): void
     {
         // setup
-        $nonTogetherworkEvent = $this->createMock(Event::class);
+        $nonTogetherworkEvent = $this->createStub(Event::class);
 
         $this->eventBus->expects($this->once())->method('fire')->with($nonTogetherworkEvent);
+        $this->kinesis->expects($this->never())->method('putRecord');
+        $this->logger->expects($this->never())->method('error');
 
         // execute
         $this->decorator->fire($nonTogetherworkEvent);
@@ -87,6 +91,7 @@ class KinesisEventBusDecoratorTest extends TestCase
         $payload = $this->getPayload($this->event, $this->session);
 
         $this->eventBus->expects($this->once())->method('fire')->with($this->event);
+        $this->logger->expects($this->never())->method('error');
         $this->kinesis->expects($this->once())
             ->method('putRecord')
             ->with([
@@ -102,8 +107,8 @@ class KinesisEventBusDecoratorTest extends TestCase
     public function testItLogsErrorWhenKinesisFails(): void
     {
         // setup
-        $awsException = $this->createMock(AwsException::class);
-        $this->kinesis->method('putRecord')->willThrowException($awsException);
+        $awsException = $this->createStub(AwsException::class);
+        $this->kinesis->expects($this->once())->method('putRecord')->willThrowException($awsException);
 
         $this->logger->expects($this->once())
             ->method('error')
@@ -127,13 +132,14 @@ class KinesisEventBusDecoratorTest extends TestCase
         array $attributes
     ): void {
         // Setup
-        $event = $this->createMock(TWEvent::class);
+        $event = $this->createStub(TWEvent::class);
         $event->method('getName')->willReturn($eventName);
         $event->method('getAttributes')->willReturn($attributes);
 
         $expectedPayload = $this->getPayload($event, $this->session);
 
         $this->eventBus->expects($this->once())->method('fire')->with($event);
+        $this->logger->expects($this->never())->method('error');
         $this->kinesis->expects($this->once())
             ->method('putRecord')
             ->with([
